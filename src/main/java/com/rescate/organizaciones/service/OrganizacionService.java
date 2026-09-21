@@ -6,6 +6,10 @@ import com.rescate.organizaciones.model.Organizacion;
 import com.rescate.organizaciones.model.Sede;
 import com.rescate.organizaciones.repository.OrganizacionRepository;
 import com.rescate.organizaciones.repository.SedeRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,16 +28,24 @@ public class OrganizacionService {
         this.sedeRepository = sedeRepository;
     }
 
+    /** Listado paginado y filtrable. limit se acota a 1..500 y page empieza en 0. */
     @Transactional(readOnly = true)
-    public List<Organizacion> listOrganizaciones(String tipo, Boolean activo) {
-        if (tipo != null && activo != null) {
-            return organizacionRepository.findByTipoAndActivo(tipo.toUpperCase(), activo);
-        } else if (tipo != null) {
-            return organizacionRepository.findByTipo(tipo.toUpperCase());
-        } else if (activo != null) {
-            return organizacionRepository.findByActivo(activo);
+    public Page<Organizacion> listOrganizaciones(String tipo, Boolean activo, String q, int limit, int page) {
+        Specification<Organizacion> spec = (root, query, cb) -> cb.conjunction();
+        if (tipo != null && !tipo.isBlank()) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("tipo"), tipo.trim().toUpperCase()));
         }
-        return organizacionRepository.findAll();
+        if (activo != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("activo"), activo));
+        }
+        if (q != null && !q.isBlank()) {
+            String patron = "%" + q.trim().toLowerCase() + "%";
+            spec = spec.and((root, query, cb) -> cb.or(
+                    cb.like(cb.lower(root.get("nombre")), patron),
+                    cb.like(root.get("ruc"), patron)));
+        }
+        int tamano = Math.max(1, Math.min(limit, 500));
+        return organizacionRepository.findAll(spec, PageRequest.of(Math.max(page, 0), tamano, Sort.by("organizacionId")));
     }
 
     @Transactional(readOnly = true)

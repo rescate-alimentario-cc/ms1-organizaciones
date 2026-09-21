@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,7 +20,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "*", exposedHeaders = "X-Total-Count")
 @Tag(name = "MS1 - Organizaciones y Sedes", description = "Endpoints de gestión para Donantes y ONGs")
 public class OrganizacionController {
 
@@ -39,13 +40,23 @@ public class OrganizacionController {
     }
 
     @GetMapping("/organizations")
-    @Operation(summary = "Listar organizaciones", description = "Permite filtrar organizaciones por tipo (DONANTE, ONG) y estado activo")
+    @Operation(summary = "Listar organizaciones",
+            description = "Listado paginado. Filtra por tipo (DONANTE, ONG), estado activo y texto (nombre o RUC). El total va en la cabecera X-Total-Count")
     public ResponseEntity<List<Organizacion>> listOrganizations(
             @Parameter(description = "Tipo de organización: DONANTE o ONG")
             @RequestParam(required = false) String tipo,
             @Parameter(description = "Estado activo: true o false")
-            @RequestParam(required = false) Boolean activo) {
-        return ResponseEntity.ok(organizacionService.listOrganizaciones(tipo, activo));
+            @RequestParam(required = false) Boolean activo,
+            @Parameter(description = "Texto a buscar en nombre o RUC")
+            @RequestParam(required = false) String q,
+            @Parameter(description = "Registros por página (1-500)")
+            @RequestParam(defaultValue = "100") int limit,
+            @Parameter(description = "Número de página, desde 0")
+            @RequestParam(defaultValue = "0") int page) {
+        Page<Organizacion> resultado = organizacionService.listOrganizaciones(tipo, activo, q, limit, page);
+        return ResponseEntity.ok()
+                .header("X-Total-Count", String.valueOf(resultado.getTotalElements()))
+                .body(resultado.getContent());
     }
 
     @GetMapping("/organizations/{id}")
